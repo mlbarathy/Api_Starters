@@ -1,49 +1,50 @@
 from fastapi import FastAPI
-from pydantic import BaseModel , EmailStr,Field
-import socket
-import os
+from pydantic import BaseModel, EmailStr, Field
 import uvicorn
-import time
 
+app = FastAPI(title="In-Memory User Registration API")
 
-app = FastAPI()
-
+# -------------------------------
+# Pydantic v2 Model with validation
+# -------------------------------
 class UserSchema(BaseModel):
-    username: str
-    email: EmailStr
-    password: str = Field(..., min_length=8) 
     id: int
+    username: str
+    email: EmailStr                 # valid email
+    password: str = Field(..., min_length=8)  # min 8 chars
 
-
+# -------------------------------
+# In-memory storage
+# -------------------------------
 user_json = []
 
+# -------------------------------
+# Endpoints
+# -------------------------------
 @app.post("/user-registration/")
 def user_registration(user: UserSchema):
-       
+    # Prevent duplicate IDs
     for existing_user in user_json:
         if existing_user["id"] == user.id:
             return {"message": f"User with ID {user.id} already exists"}
-    
-    user_json.append(user.model_dump()  )
-    return {"message": "User registered successfully", "user_data": user.dict()}
 
-@app.post("/get-all-users/")
-def user_registration():
-    return user_json
-
-def free_port(port: int) -> bool:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        return s.connect_ex(('127.0.0.1', port)) != 0
+    user_data = user.model_dump()  # Pydantic v2
+    user_json.append(user_data)
+    return {"message": "User registered successfully", "user_data": user_data}
 
 
-def main():
-    port = 8000
-    if not free_port(port):
-        print(f"Port {port} is in use. Killing the process...")
-        os.system(f"kill -9 $(lsof -t -i:{port})")
-        time.sleep(1)
+@app.get("/get-all-users/")
+def get_all_users():
+    return {"total_users": len(user_json), "users": user_json}
 
-    uvicorn.run("02_user_registration:app", host="127.0.0.1", port=port, reload=True)
-
+# -------------------------------
+# Main entry
+# -------------------------------
 if __name__ == "__main__":
-    main()
+    # Simply start Uvicorn server
+    uvicorn.run(
+        "02_user_registration:app",  # module_name:app_instance
+        host="127.0.0.1",
+        port=8000,
+        reload=True  # hot reload for development
+    )
